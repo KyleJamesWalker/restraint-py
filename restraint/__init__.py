@@ -3,8 +3,6 @@ import datetime
 import functools
 import time
 
-from copy import deepcopy
-
 
 class RestraintError(Exception):
     """The base exception for the registry"""
@@ -19,9 +17,17 @@ class Registry:
         """Registry of active restraints"""
         self._restraints = {}
 
-    def get(self, name):
-        if name not in self._services:
-            raise RestraintNotFoundError("%s not found" % name)
+    def __setitem__(self, name, val):
+        self._restraints[name] = val
+
+    def __getitem__(self, name):
+        return self._restraints[name]
+
+    def __contains__(self, item):
+        return item in self._restraints
+
+
+_reg = Registry()
 
 
 class Limit:
@@ -31,85 +37,106 @@ class Limit:
     will reset at the top of each period.   This will allow to use all your
     quota as fast as possible in each given time period.
 
+    Args:
+        second: Per second rate
+        minute: Per minute rate
+        hour: Per hour rate
+        day: Per day rate
+        month: Per month rate
+        year: Per year rate
+
     """
     def __init__(
         self,
         second=0, minute=0, hour=0, day=0, month=0, year=0,
     ):
-        """Simple time based rate limiter
-
-        Args:
-            second: Per second rate
-            minute: Per minute rate
-            hour: Per hour rate
-            day: Per day rate
-            month: Per month rate
-            year: Per year rate
-
-        """
+        """Setup restraint"""
+        self.microsecond = 0
         self.second = second
         self.minute = minute
         self.hour = hour
         self.day = day
         self.month = month
         self.year = year
-        self.dt_info = datetime.datetime.now()
+
+        self.sleep = time.sleep
         self.rate_remaining = {}
 
-        if self.second:
-            self.rate_remaining['second'] = self.second
-        if self.minute:
-            self.rate_remaining['minute'] = self.minute
-        if self.hour:
-            self.rate_remaining['hour'] = self.hour
-        if self.day:
-            self.rate_remaining['day'] = self.day
-        if self.month:
-            self.rate_remaining['month'] = self.month
+        self.dt_info = datetime.datetime.now()
+
         if self.year:
             self.rate_remaining['year'] = self.year
-
+        if self.month:
+            self.rate_remaining['month'] = self.month
+        if self.day:
+            self.rate_remaining['day'] = self.day
+        if self.hour:
+            self.rate_remaining['hour'] = self.hour
+        if self.minute:
+            self.rate_remaining['minute'] = self.minute
+        if self.second:
+            self.rate_remaining['second'] = self.second
 
     def check(self, now=None):
         """Check for quota remaining"""
         now = now or datetime.datetime.now()
         quota_remaining = True
+        trip = False
 
-        for key, value in self.rate_remaining.items():
-            if getattr(now, key) is not getattr(self.dt_info, key):
+        test_time = datetime.datetime(year=1, month=1, day=1)
+        for key in [
+            'year', 'month', 'day', 'hour',
+            'minute', 'second', 'microsecond',
+        ]:
+            value = self.rate_remaining.get(key)
+            if not trip:
+                test_time = test_time.replace(
+                    **{key: getattr(self.dt_info, key)}
+                )
+
+            if value is None:
+                continue
+
+            if trip or now > test_time + datetime.timedelta(
+                **{f"{key}s": 1},
+            ):
                 self.rate_remaining[key] = getattr(self, key)
-            if self.rate_remaining[key] < 1:
+                if not trip:
+                    trip = True
+                    self.dt_info = now
+            elif self.rate_remaining[key] < 1:
                 quota_remaining = False
 
         return quota_remaining
 
-    def sleep(self, seconds):
-        """Sleep given request time"""
-        time.sleep(seconds)
+    def _rest(self, now):
+        """Rest based on quota exceeded"""
+        trip = False
+        replace = {}
+
+        time_key = None
+        for key in [
+            'year', 'month', 'day', 'hour',
+            'minute', 'second', 'microsecond',
+        ]:
+            if trip:
+                replace[key] = 0
+            elif self.rate_remaining.get(key) == 0:
+                trip = True
+                time_key = f"{key}s"
+
+        then = now.replace(**replace) + datetime.timedelta(**{time_key: 1})
+        self.sleep((then - now).total_seconds())
 
     def gate(self):
         now = datetime.datetime.now()
 
         if not self.check(now):
-            # Quota has expired
-            clear = False
-
-            for key in [
-                'year', 'month', 'day', 'hour',
-                'minute', 'second', 'microsecond',
-            ]:
-                if clear:
-                    then = then.replace(**{key: 0})
-                elif self.rate_remaining.get(key) == 0:
-                    clear = True
-                    then = now.replace(**{key: getattr(now, key) + 1})
-
-            self.sleep((then - now).total_seconds())
+            self._rest(now)
+            self.check()
 
         # Reduce quota from each category
         for key, value in self.rate_remaining.items():
-            if getattr(now, key) is not getattr(self.dt_info, key):
-                self.rate_remaining[key] = getattr(self, key)
             if self.rate_remaining[key] >= 1:
                 self.rate_remaining[key] -= 1
 
@@ -165,25 +192,20 @@ class StartupTimeAwareLimit(Limit):
         }
 
 
-
-class limit:
-    def __init__(self, delay=1):
-        """Limit interaction
-
-        TODO:
-        Support configure based on partial day (startup time), or ignore.
-        Configure distribution. x calls/time, allow all at once, uniform, gitter
-
-        """
-        self.delay = delay  # TODO: convert to calls per second/minute/day/etc
-
-    def check(self):
-        """Limit check"""
-        time.sleep(self.delay)
+class restrain:
+    def __init__(self, name=None, restraint=None):
+        """Restrain interaction"""
+        if name is None:
+            self.restraint = restraint
+        elif name and name in _reg:
+            self.restraint = _reg[name]
+        else:
+            self.restraint = restraint
+            _reg[name] = self.restraint
 
     def __enter__(self):
         """Context manager support"""
-        self.check()  # Does it make sense to sleep on contruction?
+        # Does it make sense to sleep on contruction?
         return self
 
     def __exit__(self, exception_type, exception_value, traceback):
@@ -198,6 +220,6 @@ class limit:
         """Decorator Support"""
         @functools.wraps(org_func)
         def wrapper(*args, **kwargs):  # pylint: disable=C0111
-            self.check()
+            self.restraint.gate()
             return org_func(*args, **kwargs)
         return wrapper

@@ -19,3 +19,8 @@ test:
 
 build:
 	PYENV_VERSION=rest python setup.py build
+
+upload_test:
+	# pip install twine
+	python setup.py sdist
+	twine upload --repository-url https://test.pypi.org/legacy/ -u __token__ -p $TESTPYPI_PASS dist/* --verbose

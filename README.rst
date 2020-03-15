@@ -7,11 +7,10 @@ Restraint
 .. image:: https://codecov.io/gh/KyleJamesWalker/restraint-py/branch/master/graph/badge.svg
   :target: https://codecov.io/gh/KyleJamesWalker/restraint-py
 
-Rate Limit Library.
+Simple Rate Limit Library.
 
 Example setup
 ^^^^^^^^^^^^^
-Python Code - Base Functions
 
 .. code-block:: python
 

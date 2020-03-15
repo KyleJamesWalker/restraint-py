@@ -1,0 +1,18 @@
+sudo: false
+language: python
+python:
+- '3.6'
+- '3.7'
+- '3.8'
+install: pip install tox-travis codecov
+script: tox
+deploy:
+  provider: pypi
+  user: __token__
+  on:
+    tags: true
+    python: '3.8'
+  password:
+    secure: X4gDZvzYx1ii4GEV/QsP1xIo2gmeUhfPghznfJD02bGFLxhrAfJTG8svOeGBsrS6WcTQ2vTecCPFVMLPnffe2+evmgj4sgNE1r8JXyGBVHaEQsBh02jaa44LC9qu9wpIjYHUarzY5LQbvJM7VT2bhe+lxT0zh9XEWyTDd3qEVs3PKU15BvR4wUKXC+SCFDT2VQLqf3vl6+qHlbu/Wl64MX/KdQILUu2G+ZthAXgQMPPEB0+KUTyHOlZvpVypZ4bmsjkyDkoHZNu2qNP3AOWbD0F3WxD2XTIPiwyf3kOTUHfLNPRFMshD/fAwInrzQORDxV1aM7d3kTrN36A41YlYJdsBqMIEzRULMsDtEW+JKqlXN08jqsJTqdIVKoGctwbzdzQKAwL/9VDMAPtwbWuXfe95WuLDEfos43vsqFDFi4GEJqv3OXR47U8D34t2auyzXFvGdrXl3ftC+30MxGf2S33LOklhivu6SIAoMqLvxmpxPT01KknpwZ4wgmABiXTUeC06/h4bEjDi8hVwalu+Lc7Pb31kWZTkbjNpR2IkfrNnxa2iuf43AJUh9k8XJweyoDz9d6nj0wN0jj3VWIr+q0eAOKKSORR8TbK/2ETvdWaNb7FDnnNopPXCatoUlweLDgDu/lDuyV25QaE5OrkP6lKlvyIEfYp93y/wrMFmOvw=
+after_success:
+- codecov

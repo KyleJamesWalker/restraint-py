@@ -1,5 +1,4 @@
 """Collection of various restraints"""
-import calendar
 import datetime
 import time
 

@@ -1,0 +1,16 @@
+sudo: false
+language: python
+python:
+- '3.6'
+- '3.7'
+- '3.8'
+install: pip install tox-travis codecov
+script: tox
+deploy:
+  provider: pypi
+  user: __token__
+  on:
+    tags: true
+    python: '3.8'
+after_success:
+  - codecov

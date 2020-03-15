@@ -4,7 +4,6 @@ readme = open('README.rst').read()
 
 requirements = {
     "package": [
-        "PyYAML>=5",
     ],
     "test": [
         "pytest",

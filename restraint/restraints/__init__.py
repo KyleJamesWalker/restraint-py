@@ -18,11 +18,13 @@ class Limit:
         day: Per day rate
         month: Per month rate
         year: Per year rate
+        sleep_cb: Optional override sleep function, default time.sleep
 
     """
     def __init__(
         self,
         second=0, minute=0, hour=0, day=0, month=0, year=0,
+        sleep_cb=None,
     ):
         """Setup restraint"""
         self.microsecond = 0
@@ -33,7 +35,7 @@ class Limit:
         self.month = month
         self.year = year
 
-        self.sleep = time.sleep
+        self.sleep = sleep_cb or time.sleep
         self.rate_remaining = {}
 
         self.dt_info = datetime.datetime.now()

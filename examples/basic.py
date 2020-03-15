@@ -1,9 +1,4 @@
-"""Example usage
-
-Questions:
-    How should  I configure this? global, multiple, share, configure
-
-"""
+"""Basic example usage"""
 import time
 
 from restraint import restrain, Limit, add

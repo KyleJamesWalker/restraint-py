@@ -1,4 +1,5 @@
 """Restraint Library"""
+import asyncio
 import functools
 
 from restraint.exceptions import RestraintError, RestraintNotFoundError
@@ -22,10 +23,19 @@ class restrain:
         else:
             raise RestraintNotFoundError('Undefined restraint')
 
+    async def __aenter__(self):
+        """Context manager support"""
+        await self.restraint.gate()
+        return self
+
     def __enter__(self):
         """Context manager support"""
         self.restraint.gate()
         return self
+
+    async def __aexit__(self, exception_type, exception_value, traceback):
+        """Context manager support"""
+        pass
 
     def __exit__(self, exception_type, exception_value, traceback):
         """Context manager support"""
@@ -37,11 +47,20 @@ class restrain:
 
     def __call__(self, org_func):
         """Decorator Support"""
-        @functools.wraps(org_func)
-        def wrapper(*args, **kwargs):  # pylint: disable=C0111
-            self.restraint.gate()
-            return org_func(*args, **kwargs)
-        return wrapper
+        is_async = asyncio.iscoroutinefunction(org_func)
+        # await asyncio.get_event_loop().run_in_executor(send_request)
+        if is_async:
+            @functools.wraps(org_func)
+            async def wrapper(*args, **kwargs):  # pylint: disable=C0111
+                self.restraint.gate()
+                return await org_func(*args, **kwargs)
+            return wrapper
+        else:
+            @functools.wraps(org_func)
+            def wrapper(*args, **kwargs):  # pylint: disable=C0111
+                self.restraint.gate()
+                return org_func(*args, **kwargs)
+            return wrapper
 
 
 __all__ = [

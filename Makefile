@@ -12,7 +12,7 @@ clean:
 	@find . -name '__pycache__' -delete
 
 test3:
-	-tox -e py36 $(test_extra_params)
+	-tox -e py38 $(test_extra_params)
 
 test:
 	tox -p auto

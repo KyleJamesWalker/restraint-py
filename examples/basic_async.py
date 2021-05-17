@@ -1,4 +1,4 @@
-"""Basic async example usage"""
+"""Basic async example usage."""
 import asyncio
 import time
 
@@ -9,15 +9,18 @@ add("foo", Limit(second=1, minute=5))
 
 @restrain("foo")
 async def echo_chamber():
+    """Say the current time."""
     print(f"Hello World {time.time()}")
 
 
 @restrain("foo")
 async def second():
+    """Say the current time."""
     print(f"Hey! {time.time()}")
 
 
 async def main():
+    """Process call calls in parallel."""
     await asyncio.gather(
         echo_chamber(),
         second(),

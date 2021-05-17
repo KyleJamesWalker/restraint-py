@@ -1,10 +1,10 @@
-"""Collection of various restraints"""
+"""Collection of various restraints."""
 import datetime
 import time
 
 
 class Limit:
-    """Simple time based limit
+    """Simple time based limit.
 
     This restraint will limit the number of calls in a given time period, and
     will reset at the top of each period. This will allow to use all your
@@ -31,7 +31,7 @@ class Limit:
         year=0,
         sleep_cb=None,
     ):
-        """Setup restraint"""
+        """Init the restraint."""
         self.microsecond = 0
         self.second = second
         self.minute = minute
@@ -59,7 +59,7 @@ class Limit:
             self.rate_remaining["second"] = self.second
 
     def check(self, now=None):
-        """Check for quota remaining"""
+        """Check for quota remaining."""
         now = now or datetime.datetime.now()
         quota_remaining = True
         trip = False
@@ -94,7 +94,7 @@ class Limit:
         return quota_remaining
 
     def _rest(self, now):
-        """Rest based on quota exceeded"""
+        """Rest based on quota exceeded."""
         trip = False
         replace = {}
 
@@ -118,6 +118,7 @@ class Limit:
         self.sleep((then - now).total_seconds())
 
     def gate(self):
+        """Get the code."""
         now = datetime.datetime.now()
 
         if not self.check(now):

@@ -1,9 +1,9 @@
-"""Test simple limit"""
+"""Test simple limit."""
 from restraint import Limit
 
 
 def test_seconds(when_now, mocker):
-    """Test simple second limit"""
+    """Test simple second limit."""
     lmt = Limit(second=3)
     # Remove ability to sleep
     p = mocker.patch.object(lmt, "sleep")
@@ -23,7 +23,7 @@ def test_seconds(when_now, mocker):
 
 
 def test_minutes(when_now, mocker):
-    """Test seconds and minutes limit"""
+    """Test seconds and minutes limit."""
     lmt = Limit(second=1, minute=3)
 
     # Remove ability to sleep

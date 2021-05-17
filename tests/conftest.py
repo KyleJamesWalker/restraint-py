@@ -1,14 +1,14 @@
-"""Global test fixtures"""
+"""Global test fixtures."""
 import datetime
 import pytest
 
 
 @pytest.fixture
 def when_now(monkeypatch):
-    """Fixture to easily set the time"""
+    """Fixture to easily set the time."""
 
     class MockedDatetime(datetime.datetime):
-        """Change current time"""
+        """Change current time."""
 
         offset_months = 0
         offset_days = 0
@@ -20,11 +20,12 @@ def when_now(monkeypatch):
 
         @classmethod
         def inc(cls, seconds):
+            """Advance the current time."""
             cls.offset_seconds += seconds
 
         @classmethod
         def now(cls):
-            """Fake datetime.now()"""
+            """Fake the datetime now function."""
             cur_time = cls.base_time + datetime.timedelta(
                 days=cls.offset_days,
                 hours=cls.offset_hours,
@@ -36,7 +37,7 @@ def when_now(monkeypatch):
 
         @classmethod
         def utcnow(cls):
-            """Fake datetime.now()"""
+            """Fake the datetime utcnow function."""
             return cls.now()
 
     monkeypatch.setattr("datetime.datetime", MockedDatetime)

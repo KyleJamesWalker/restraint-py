@@ -1,4 +1,4 @@
-"""Restraint Library"""
+"""Restraint Library."""
 import asyncio
 import functools
 
@@ -11,8 +11,10 @@ add = _reg.add
 
 
 class restrain:
+    """Restraint class."""
+
     def __init__(self, name=None, restraint=None):
-        """Restrain interaction"""
+        """Restrain interaction."""
         if name is None:
             self.restraint = restraint
         elif name in _reg:
@@ -24,21 +26,21 @@ class restrain:
             raise RestraintNotFoundError("Undefined restraint")
 
     async def __aenter__(self):
-        """Context manager support"""
+        """Context manager support."""
         await self.restraint.gate()
         return self
 
     def __enter__(self):
-        """Context manager support"""
+        """Context manager support."""
         self.restraint.gate()
         return self
 
     async def __aexit__(self, exception_type, exception_value, traceback):
-        """Context manager support"""
+        """Context manager support."""
         pass
 
     def __exit__(self, exception_type, exception_value, traceback):
-        """Context manager support"""
+        """Context manager support."""
         pass
 
     def __del__(self):
@@ -46,9 +48,9 @@ class restrain:
         pass
 
     def __call__(self, org_func):
-        """Decorator Support"""
+        """Add decorator Support."""
         is_async = asyncio.iscoroutinefunction(org_func)
-        # await asyncio.get_event_loop().run_in_executor(send_request)
+
         if is_async:
 
             @functools.wraps(org_func)

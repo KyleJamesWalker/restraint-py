@@ -1,10 +1,10 @@
-"""Collection of various restraints"""
+"""Collection of various restraints."""
 import datetime
 import time
 
 
 class Limit:
-    """Simple time based limit
+    """Simple time based limit.
 
     This restraint will limit the number of calls in a given time period, and
     will reset at the top of each period. This will allow to use all your
@@ -20,12 +20,18 @@ class Limit:
         sleep_cb: Optional override sleep function, default time.sleep
 
     """
+
     def __init__(
         self,
-        second=0, minute=0, hour=0, day=0, month=0, year=0,
+        second=0,
+        minute=0,
+        hour=0,
+        day=0,
+        month=0,
+        year=0,
         sleep_cb=None,
     ):
-        """Setup restraint"""
+        """Init the restraint."""
         self.microsecond = 0
         self.second = second
         self.minute = minute
@@ -40,34 +46,37 @@ class Limit:
         self.dt_info = datetime.datetime.now()
 
         if self.year:
-            self.rate_remaining['year'] = self.year
+            self.rate_remaining["year"] = self.year
         if self.month:
-            self.rate_remaining['month'] = self.month
+            self.rate_remaining["month"] = self.month
         if self.day:
-            self.rate_remaining['day'] = self.day
+            self.rate_remaining["day"] = self.day
         if self.hour:
-            self.rate_remaining['hour'] = self.hour
+            self.rate_remaining["hour"] = self.hour
         if self.minute:
-            self.rate_remaining['minute'] = self.minute
+            self.rate_remaining["minute"] = self.minute
         if self.second:
-            self.rate_remaining['second'] = self.second
+            self.rate_remaining["second"] = self.second
 
     def check(self, now=None):
-        """Check for quota remaining"""
+        """Check for quota remaining."""
         now = now or datetime.datetime.now()
         quota_remaining = True
         trip = False
 
         test_time = datetime.datetime(year=1, month=1, day=1)
         for key in [
-            'year', 'month', 'day', 'hour',
-            'minute', 'second', 'microsecond',
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+            "second",
+            "microsecond",
         ]:
             value = self.rate_remaining.get(key)
             if not trip:
-                test_time = test_time.replace(
-                    **{key: getattr(self.dt_info, key)}
-                )
+                test_time = test_time.replace(**{key: getattr(self.dt_info, key)})
 
             if value is None:
                 continue
@@ -85,14 +94,19 @@ class Limit:
         return quota_remaining
 
     def _rest(self, now):
-        """Rest based on quota exceeded"""
+        """Rest based on quota exceeded."""
         trip = False
         replace = {}
 
         time_key = None
         for key in [
-            'year', 'month', 'day', 'hour',
-            'minute', 'second', 'microsecond',
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+            "second",
+            "microsecond",
         ]:
             if trip:
                 replace[key] = 0
@@ -104,6 +118,7 @@ class Limit:
         self.sleep((then - now).total_seconds())
 
     def gate(self):
+        """Get the code."""
         now = datetime.datetime.now()
 
         if not self.check(now):

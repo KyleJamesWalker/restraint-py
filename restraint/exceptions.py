@@ -1,9 +1,9 @@
-"""All custom exceptions"""
+"""All custom exceptions."""
 
 
 class RestraintError(Exception):
-    """Base exception for the library"""
+    """Base exception for the library."""
 
 
 class RestraintNotFoundError(RestraintError):
-    """Restraint not found in registry"""
+    """Restraint not found in registry."""

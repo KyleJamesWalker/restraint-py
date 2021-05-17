@@ -1,56 +1,15 @@
-import datetime
-import pytest
-
+"""Test simple limit."""
 from restraint import Limit
 
 
-@pytest.fixture
-def when_now(monkeypatch):
-    """Fixture to easily set the time"""
-    class MockedDatetime(datetime.datetime):
-        """Change current time"""
-        offset_months = 0
-        offset_days = 0
-        offset_hours = 0
-        offset_minutes = 0
-        offset_seconds = 0
-        offset_microseconds = 0
-        base_time = datetime.datetime(2020, 1, 15, 7, 9, 1, 313375)
-
-        @classmethod
-        def inc(cls, seconds):
-            cls.offset_seconds += seconds
-
-        @classmethod
-        def now(cls):
-            """Fake datetime.now()"""
-            cur_time = cls.base_time + datetime.timedelta(
-                days=cls.offset_days,
-                hours=cls.offset_hours,
-                minutes=cls.offset_minutes,
-                seconds=cls.offset_seconds,
-                microseconds=cls.offset_microseconds,
-            )
-            return cur_time
-
-        @classmethod
-        def utcnow(cls):
-            """Fake datetime.now()"""
-            return cls.now()
-
-    monkeypatch.setattr('datetime.datetime', MockedDatetime)
-
-    yield MockedDatetime
-
-
 def test_seconds(when_now, mocker):
-    """Test simple second limit"""
+    """Test simple second limit."""
     lmt = Limit(second=3)
     # Remove ability to sleep
-    p = mocker.patch.object(lmt, 'sleep')
+    p = mocker.patch.object(lmt, "sleep")
     p.side_effect = lambda x: when_now.inc(x)
 
-    spy = mocker.spy(lmt, 'sleep')
+    spy = mocker.spy(lmt, "sleep")
 
     # First three calls should work
     lmt.gate()
@@ -64,16 +23,16 @@ def test_seconds(when_now, mocker):
 
 
 def test_minutes(when_now, mocker):
-    """Test seconds and minutes limit"""
+    """Test seconds and minutes limit."""
     lmt = Limit(second=1, minute=3)
 
     # Remove ability to sleep
-    p = mocker.patch.object(lmt, 'sleep')
+    p = mocker.patch.object(lmt, "sleep")
     # Sleep for a tiny bit longer so show time
     # passing between test calls
-    p.side_effect = lambda x: when_now.inc(x + .0001)
+    p.side_effect = lambda x: when_now.inc(x + 0.0001)
 
-    spy = mocker.spy(lmt, 'sleep')
+    spy = mocker.spy(lmt, "sleep")
     calls = []
 
     # First call no sleep

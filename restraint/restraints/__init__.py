@@ -20,9 +20,15 @@ class Limit:
         sleep_cb: Optional override sleep function, default time.sleep
 
     """
+
     def __init__(
         self,
-        second=0, minute=0, hour=0, day=0, month=0, year=0,
+        second=0,
+        minute=0,
+        hour=0,
+        day=0,
+        month=0,
+        year=0,
         sleep_cb=None,
     ):
         """Setup restraint"""
@@ -40,17 +46,17 @@ class Limit:
         self.dt_info = datetime.datetime.now()
 
         if self.year:
-            self.rate_remaining['year'] = self.year
+            self.rate_remaining["year"] = self.year
         if self.month:
-            self.rate_remaining['month'] = self.month
+            self.rate_remaining["month"] = self.month
         if self.day:
-            self.rate_remaining['day'] = self.day
+            self.rate_remaining["day"] = self.day
         if self.hour:
-            self.rate_remaining['hour'] = self.hour
+            self.rate_remaining["hour"] = self.hour
         if self.minute:
-            self.rate_remaining['minute'] = self.minute
+            self.rate_remaining["minute"] = self.minute
         if self.second:
-            self.rate_remaining['second'] = self.second
+            self.rate_remaining["second"] = self.second
 
     def check(self, now=None):
         """Check for quota remaining"""
@@ -60,14 +66,17 @@ class Limit:
 
         test_time = datetime.datetime(year=1, month=1, day=1)
         for key in [
-            'year', 'month', 'day', 'hour',
-            'minute', 'second', 'microsecond',
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+            "second",
+            "microsecond",
         ]:
             value = self.rate_remaining.get(key)
             if not trip:
-                test_time = test_time.replace(
-                    **{key: getattr(self.dt_info, key)}
-                )
+                test_time = test_time.replace(**{key: getattr(self.dt_info, key)})
 
             if value is None:
                 continue
@@ -91,8 +100,13 @@ class Limit:
 
         time_key = None
         for key in [
-            'year', 'month', 'day', 'hour',
-            'minute', 'second', 'microsecond',
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+            "second",
+            "microsecond",
         ]:
             if trip:
                 replace[key] = 0

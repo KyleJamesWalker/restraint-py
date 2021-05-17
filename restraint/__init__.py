@@ -21,7 +21,7 @@ class restrain:
             self.restraint = restraint
             _reg[name] = self.restraint
         else:
-            raise RestraintNotFoundError('Undefined restraint')
+            raise RestraintNotFoundError("Undefined restraint")
 
     async def __aenter__(self):
         """Context manager support"""
@@ -42,7 +42,7 @@ class restrain:
         pass
 
     def __del__(self):
-        """Restore original settings if object looses scope. """
+        """Restore original settings if object looses scope."""
         pass
 
     def __call__(self, org_func):
@@ -50,23 +50,27 @@ class restrain:
         is_async = asyncio.iscoroutinefunction(org_func)
         # await asyncio.get_event_loop().run_in_executor(send_request)
         if is_async:
+
             @functools.wraps(org_func)
             async def wrapper(*args, **kwargs):  # pylint: disable=C0111
                 self.restraint.gate()
                 return await org_func(*args, **kwargs)
+
             return wrapper
         else:
+
             @functools.wraps(org_func)
             def wrapper(*args, **kwargs):  # pylint: disable=C0111
                 self.restraint.gate()
                 return org_func(*args, **kwargs)
+
             return wrapper
 
 
 __all__ = [
-    'RestraintError',
-    'RestraintNotFoundError',
-    'add',
-    'restrain',
-    'Limit',
+    "RestraintError",
+    "RestraintNotFoundError",
+    "add",
+    "restrain",
+    "Limit",
 ]

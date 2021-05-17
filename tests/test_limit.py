@@ -6,10 +6,10 @@ def test_seconds(when_now, mocker):
     """Test simple second limit"""
     lmt = Limit(second=3)
     # Remove ability to sleep
-    p = mocker.patch.object(lmt, 'sleep')
+    p = mocker.patch.object(lmt, "sleep")
     p.side_effect = lambda x: when_now.inc(x)
 
-    spy = mocker.spy(lmt, 'sleep')
+    spy = mocker.spy(lmt, "sleep")
 
     # First three calls should work
     lmt.gate()
@@ -27,12 +27,12 @@ def test_minutes(when_now, mocker):
     lmt = Limit(second=1, minute=3)
 
     # Remove ability to sleep
-    p = mocker.patch.object(lmt, 'sleep')
+    p = mocker.patch.object(lmt, "sleep")
     # Sleep for a tiny bit longer so show time
     # passing between test calls
-    p.side_effect = lambda x: when_now.inc(x + .0001)
+    p.side_effect = lambda x: when_now.inc(x + 0.0001)
 
-    spy = mocker.spy(lmt, 'sleep')
+    spy = mocker.spy(lmt, "sleep")
     calls = []
 
     # First call no sleep

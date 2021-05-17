@@ -4,17 +4,17 @@ import time
 
 from restraint import restrain, Limit, add
 
-add('foo', Limit(second=1, minute=5))
+add("foo", Limit(second=1, minute=5))
 
 
-@restrain('foo')
+@restrain("foo")
 async def echo_chamber():
-    print(f'Hello World {time.time()}')
+    print(f"Hello World {time.time()}")
 
 
-@restrain('foo')
+@restrain("foo")
 async def second():
-    print(f'Hey! {time.time()}')
+    print(f"Hey! {time.time()}")
 
 
 async def main():
@@ -24,11 +24,12 @@ async def main():
         echo_chamber(),
         echo_chamber(),
         second(),
-        return_exceptions=True
+        return_exceptions=True,
     )
 
-    with restrain('foo'):
-        print('Roll slowed')
+    with restrain("foo"):
+        print("Roll slowed")
+
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()

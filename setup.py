@@ -21,7 +21,7 @@ requirements.update(all=sorted(set().union(*requirements.values())))
 
 setup(
     name="restraint",
-    version="0.0.1",
+    version="0.0.2",
     description="Rate Limiting Module",
     long_description=readme,
     author="Kyle James Walker",

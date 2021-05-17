@@ -4,7 +4,7 @@ import time
 
 from restraint import restrain, Limit, add
 
-add('foo', Limit(second=1, minute=2))
+add('foo', Limit(second=1, minute=5))
 
 
 @restrain('foo')

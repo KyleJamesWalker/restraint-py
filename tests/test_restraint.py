@@ -1,9 +1,23 @@
 """Test the top-level restrain API."""
 
+import datetime
+
 import pytest
 
 import restraint
-from restraint import Gate, Limit, Outcome, Reservation, Restraint, restrain
+from restraint import (
+    Concurrency,
+    Gate,
+    Limit,
+    Outcome,
+    Quota,
+    Reservation,
+    Restraint,
+    restrain,
+)
+from restraint.exceptions import QuotaExceededError
+
+FIXED = datetime.datetime(2020, 1, 15, 7, 9, 1)
 
 
 class Recorder(Restraint):
@@ -129,3 +143,51 @@ def test_instance_is_reusable_sequentially() -> None:
         with shared:
             pass
     assert len(recorder.reported) == 3
+
+
+def test_guard_does_not_consume_capacity() -> None:
+    """The re-entrancy guard must not eat a slot on its way out.
+
+    __enter__ used to gate before claiming, so a shared instance lost a
+    Concurrency slot permanently every time the guard fired.
+    """
+    slots = Concurrency(2)
+    shared = restrain("guard-leak", slots)
+
+    with shared:
+        assert slots.in_flight == 1
+        with pytest.raises(restraint.RestraintError, match="already inside"), shared:
+            pass
+        assert slots.in_flight == 1, "the refused entry consumed a slot"
+
+    assert slots.in_flight == 0
+
+
+def test_failed_gating_does_not_leave_the_instance_claimed() -> None:
+    """A restraint that refuses admission must not wedge the instance."""
+    reusable = restrain("guard-refuse", Quota(second=1, now=lambda: FIXED))
+
+    with reusable:
+        pass
+
+    with pytest.raises(QuotaExceededError), reusable:
+        pass
+
+    # The refused attempt must not leave _active set, or every later use
+    # would raise the re-entrancy error instead.
+    with pytest.raises(QuotaExceededError), reusable:
+        pass
+
+
+async def test_async_guard_does_not_consume_capacity() -> None:
+    slots = Concurrency(2)
+    shared = restrain("guard-leak-async", slots)
+
+    async with shared:
+        assert slots.in_flight == 1
+        with pytest.raises(restraint.RestraintError, match="already inside"):
+            async with shared:
+                pass
+        assert slots.in_flight == 1
+
+    assert slots.in_flight == 0

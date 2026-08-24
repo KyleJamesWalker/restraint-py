@@ -173,6 +173,11 @@ class restrain:  # noqa: N801 - public API predates the convention
             self._active = Gate(self.restraint)
             return self._active
 
+    def _abandon(self) -> None:
+        """Give up a claim whose gating never completed."""
+        with self._active_lock:
+            self._active = None
+
     def _close(self, exc: BaseException | None) -> None:
         """Finish the gated block, reporting the outcome it recorded."""
         with self._active_lock:
@@ -182,8 +187,15 @@ class restrain:  # noqa: N801 - public API predates the convention
 
     def __enter__(self) -> Gate:
         """Block until admitted, then hand back a gate for reporting."""
-        self.restraint.gate()
-        return self._open()
+        # Claim before gating. Gating first would consume capacity that the
+        # re-entrancy guard then refuses to hand back.
+        gate = self._open()
+        try:
+            self.restraint.gate()
+        except BaseException:
+            self._abandon()
+            raise
+        return gate
 
     def __exit__(
         self,
@@ -196,8 +208,13 @@ class restrain:  # noqa: N801 - public API predates the convention
 
     async def __aenter__(self) -> Gate:
         """Await admission, then hand back a gate for reporting."""
-        await self.restraint.agate()
-        return self._open()
+        gate = self._open()
+        try:
+            await self.restraint.agate()
+        except BaseException:
+            self._abandon()
+            raise
+        return gate
 
     async def __aexit__(
         self,

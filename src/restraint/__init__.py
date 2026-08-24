@@ -1,10 +1,17 @@
 """Restraint Library."""
+
 import asyncio
 import functools
+from importlib.metadata import PackageNotFoundError, version
 
 from restraint.exceptions import RestraintError, RestraintNotFoundError
 from restraint.registry import Registry
 from restraint.restraints import Limit
+
+try:
+    __version__ = version("restraint")
+except PackageNotFoundError:  # pragma: no cover - source checkout
+    __version__ = "0.0.0.dev0"
 
 _reg = Registry()
 add = _reg.add

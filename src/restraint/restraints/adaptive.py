@@ -18,6 +18,11 @@ __all__ = ["Adaptive"]
 #: Status codes that mean "you are being throttled".
 THROTTLE_STATUSES = frozenset({429, 503})
 
+#: A reset value above this is read as an absolute epoch timestamp rather
+#: than a delta. No API expresses a window as ~11 days of seconds, and
+#: GitHub, Reddit and X all report the reset moment as epoch seconds.
+EPOCH_RESET_THRESHOLD = 1_000_000.0
+
 
 def _parse_retry_after(value: str) -> float | None:
     """Parse a ``Retry-After`` value, which may be seconds or a HTTP date."""
@@ -64,7 +69,13 @@ class Adaptive(Restraint):
     Args:
         minimum: Floor on the computed gap between calls, so a server
             reporting a huge budget cannot remove all pacing.
-        maximum: Ceiling on any single wait, including ``Retry-After``.
+        maximum: Ceiling on any single wait, including ``Retry-After`` and
+            the gap computed from the reported budget.
+        throttle_hold: Hold-off applied when the server reports throttling
+            but gives no ``Retry-After`` and no budget headers.
+        reset_style: How to read the reset header -- ``"delta"`` for
+            seconds from now, ``"epoch"`` for an absolute timestamp, or
+            ``"auto"`` to choose per value.
         remaining_header: Header naming the calls left in the window.
         reset_header: Header naming the seconds until the window resets.
         retry_after_header: Header naming an explicit hold-off.
@@ -80,6 +91,8 @@ class Adaptive(Restraint):
         *,
         minimum: float = 0.0,
         maximum: float = 300.0,
+        throttle_hold: float = 1.0,
+        reset_style: str = "auto",
         remaining_header: str = "X-RateLimit-Remaining",
         reset_header: str = "X-RateLimit-Reset",
         retry_after_header: str = "Retry-After",
@@ -92,8 +105,14 @@ class Adaptive(Restraint):
             raise ValueError("minimum must not be negative")
         if maximum < minimum:
             raise ValueError("maximum must not be less than minimum")
+        if throttle_hold < 0:
+            raise ValueError("throttle_hold must not be negative")
+        if reset_style not in {"auto", "delta", "epoch"}:
+            raise ValueError("reset_style must be auto, delta or epoch")
         self.minimum = minimum
         self.maximum = maximum
+        self.throttle_hold = throttle_hold
+        self.reset_style = reset_style
         self.remaining_header = remaining_header
         self.reset_header = reset_header
         self.retry_after_header = retry_after_header
@@ -120,7 +139,8 @@ class Adaptive(Restraint):
             return Reservation()
         earliest = now if self._next_allowed is None else max(now, self._next_allowed)
         self._next_allowed = earliest + self._gap
-        return Reservation(max(earliest - now, 0.0), granted=True)
+        wait = min(max(earliest - now, 0.0), self.maximum)
+        return Reservation(wait, granted=True)
 
     @staticmethod
     def _lookup(headers: Mapping[str, str], name: str) -> str | None:
@@ -140,9 +160,9 @@ class Adaptive(Restraint):
             if hold is None and (raw := self._lookup(headers, self.retry_after_header)):
                 hold = _parse_retry_after(raw)
             if hold is None and outcome.status in THROTTLE_STATUSES:
-                # Throttled without being told for how long; fall back to the
-                # gap we were already pacing at, or the floor.
-                hold = max(self._gap, self.minimum)
+                # Throttled without being told for how long. Being refused is
+                # itself information, so never fall through to no hold at all.
+                hold = max(self._gap, self.minimum, self.throttle_hold)
             if hold is not None:
                 self._hold_until = now + min(hold, self.maximum)
 
@@ -156,7 +176,7 @@ class Adaptive(Restraint):
             return
         try:
             remaining = int(float(raw_remaining))
-            reset_in = float(raw_reset)
+            reset_in = self._reset_seconds(float(raw_reset))
         except ValueError:
             return
         if reset_in <= 0:
@@ -164,4 +184,13 @@ class Adaptive(Restraint):
             return
         # One call left means wait out the window; zero means it is already
         # spent, so treat both as the full remaining window.
-        self._gap = max(reset_in / max(remaining, 1), self.minimum)
+        gap = max(reset_in / max(remaining, 1), self.minimum)
+        self._gap = min(gap, self.maximum)
+
+    def _reset_seconds(self, value: float) -> float:
+        """Convert a reset header value into seconds from now."""
+        if self.reset_style == "delta":
+            return value
+        if self.reset_style == "epoch" or value > EPOCH_RESET_THRESHOLD:
+            return max(value - time.time(), 0.0)
+        return value

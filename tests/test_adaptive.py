@@ -1,5 +1,7 @@
 """Test pacing from server rate-limit headers."""
 
+import time
+
 import pytest
 
 from restraint import Adaptive, Outcome, restrain
@@ -175,3 +177,63 @@ async def test_async_path_honours_the_hold(clock: FakeClock) -> None:
     adaptive = Adaptive(maximum=0.02)
     adaptive.report(Outcome(status=429, headers={"Retry-After": "1"}))
     await adaptive.agate()
+
+
+def test_gap_is_capped_at_maximum(clock: FakeClock) -> None:
+    """The documented ceiling must bound the computed gap, not just holds."""
+    adaptive = build(clock, maximum=30.0)
+    adaptive.report(
+        Outcome(headers={"X-RateLimit-Remaining": "1", "X-RateLimit-Reset": "86400"})
+    )
+    assert adaptive.gap == pytest.approx(30.0)
+
+    adaptive.gate()
+    adaptive.gate()
+    assert clock.slept == [pytest.approx(30.0)]
+
+
+def test_epoch_style_reset_is_not_read_as_a_delta(clock: FakeClock) -> None:
+    """GitHub, Reddit and X report reset as an absolute epoch timestamp.
+
+    Read as a delta it produced a gap of roughly 28 years.
+    """
+    adaptive = build(clock, maximum=600.0)
+    reset_at = time.time() + 3600.0
+    adaptive.report(
+        Outcome(
+            headers={
+                "X-RateLimit-Remaining": "60",
+                "X-RateLimit-Reset": str(int(reset_at)),
+            }
+        )
+    )
+    # 60 calls across the remaining hour is a minute apart, not decades.
+    assert adaptive.gap == pytest.approx(60.0, abs=2.0)
+
+
+def test_reset_style_can_be_forced(clock: FakeClock) -> None:
+    delta = Adaptive(reset_style="delta", clock=clock.monotonic, sleep=clock.sleep)
+    delta.report(
+        Outcome(headers={"X-RateLimit-Remaining": "2", "X-RateLimit-Reset": "9999999"})
+    )
+    assert delta.gap == pytest.approx(min(9999999 / 2, delta.maximum))
+
+
+def test_bare_throttle_still_holds(clock: FakeClock) -> None:
+    """A 429 with no headers is information; it must not be a no-op."""
+    adaptive = build(clock)
+    adaptive.report(Outcome(status=429))
+    adaptive.gate()
+    assert clock.slept == [pytest.approx(adaptive.throttle_hold)]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"throttle_hold": -1.0}, "throttle_hold must not be negative"),
+        ({"reset_style": "nonsense"}, "reset_style must be"),
+    ],
+)
+def test_rejects_invalid_new_configuration(kwargs: object, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        Adaptive(**kwargs)  # type: ignore[arg-type]

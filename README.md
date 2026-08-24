@@ -118,6 +118,11 @@ budget it has left across the window it has left, and obeys `Retry-After`
 outright. Without those headers it does nothing, so pair it with a configured
 restraint that paces the opening calls.
 
+Reset headers come in two flavours — seconds from now, or an absolute epoch
+timestamp (GitHub, Reddit and X use the latter). `Adaptive` detects which per
+value; force it with `reset_style="delta"` or `"epoch"` if your API is
+ambiguous. Every wait it produces is bounded by `maximum` (default 300s).
+
 ### Reusing a restraint by name
 
 `add` registers a restraint once; `restrain("name")` looks it up. Registering a

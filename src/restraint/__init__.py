@@ -17,6 +17,8 @@ from restraint.exceptions import (
 from restraint.outcome import Outcome
 from restraint.registry import Registry
 from restraint.restraints import (
+    Backoff,
+    Concurrency,
     Jitter,
     Limit,
     Quota,
@@ -238,6 +240,8 @@ class restrain:  # noqa: N801 - public API predates the convention
 
 
 __all__ = [
+    "Backoff",
+    "Concurrency",
     "Gate",
     "Jitter",
     "Limit",

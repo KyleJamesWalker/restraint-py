@@ -107,3 +107,11 @@ class Restraint(ABC):
         Args:
             outcome: What happened to the call this restraint admitted.
         """
+
+    def __and__(self, other: Restraint) -> Restraint:
+        """Compose two restraints so a call must satisfy both."""
+        from restraint.restraints.composite import Composite
+
+        if not isinstance(other, Restraint):
+            return NotImplemented
+        return Composite(self, other)

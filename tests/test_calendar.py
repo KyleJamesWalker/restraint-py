@@ -47,3 +47,48 @@ def test_december_rolls_into_january() -> None:
 def test_leap_day_is_a_normal_day() -> None:
     moment = datetime.datetime(2020, 2, 29, 23, 59, 59)
     assert next_boundary(moment, "day") == datetime.datetime(2020, 3, 1)
+
+
+class TestBackwardsClock:
+    """A clock that steps backwards must not hand back spent allowance."""
+
+    def test_limit_is_not_refilled_by_a_backwards_step(self) -> None:
+        from restraint import Limit
+
+        moment = [datetime.datetime(2020, 11, 1, 1, 30, 0)]
+        lmt = Limit(hour=2, now=lambda: moment[0], sleep=lambda _: None)
+        lmt.gate()
+        lmt.gate()
+        assert lmt.remaining() == {"hour": 0}
+
+        # DST fall-back: 01:30 happens twice.
+        moment[0] = datetime.datetime(2020, 11, 1, 0, 45, 0)
+        assert lmt.remaining() == {"hour": 0}, "a backwards clock refilled the window"
+
+    def test_quota_is_not_doubled_by_a_backwards_step(self) -> None:
+        from restraint import Quota
+        from restraint.exceptions import QuotaExceededError
+
+        moment = [datetime.datetime(2020, 11, 1, 12, 0, 0)]
+        quota = Quota(day=2, now=lambda: moment[0])
+        quota.gate()
+        quota.gate()
+
+        moment[0] = datetime.datetime(2020, 10, 31, 12, 0, 0)
+        with pytest.raises(QuotaExceededError):
+            quota.gate()
+
+        # And stepping forward again must not count as a second fresh window.
+        moment[0] = datetime.datetime(2020, 11, 1, 12, 0, 0)
+        with pytest.raises(QuotaExceededError):
+            quota.gate()
+
+    def test_a_genuinely_later_window_still_refills(self) -> None:
+        from restraint import Quota
+
+        moment = [datetime.datetime(2020, 11, 1, 12, 0, 0)]
+        quota = Quota(day=1, now=lambda: moment[0])
+        quota.gate()
+
+        moment[0] = datetime.datetime(2020, 11, 2, 12, 0, 0)
+        quota.gate()

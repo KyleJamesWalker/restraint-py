@@ -74,10 +74,18 @@ class CalendarWindows:
         return dict(self._remaining)
 
     def _refill(self, now: datetime.datetime) -> None:
-        """Reset any counter whose window no longer contains ``now``."""
+        """Reset any counter whose window has elapsed.
+
+        Refills only when the clock moves *forward* into a new window. These
+        are local wall-clock windows, so a DST fall-back or an NTP correction
+        can hand back an earlier window; treating that as new would refill an
+        allowance that was never actually earned and double a budget once a
+        year.
+        """
         for period, cap in self._caps.items():
             window = floor(now, period)
-            if self._windows.get(period) != window:
+            current = self._windows.get(period)
+            if current is None or window > current:
                 self._windows[period] = window
                 self._remaining[period] = cap
 

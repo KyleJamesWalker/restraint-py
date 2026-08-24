@@ -9,32 +9,30 @@ add("foo", Limit(second=1, minute=5))
 
 
 @restrain("foo")
-async def echo_chamber():
+async def echo_chamber() -> None:
     """Say the current time."""
     print(f"Hello World {time.time()}")
 
 
 @restrain("foo")
-async def second():
+async def second() -> None:
     """Say the current time."""
     print(f"Hey! {time.time()}")
 
 
-async def main():
-    """Process call calls in parallel."""
+async def main() -> None:
+    """Process all calls concurrently."""
     await asyncio.gather(
         echo_chamber(),
         second(),
         echo_chamber(),
         echo_chamber(),
         second(),
-        return_exceptions=True,
     )
 
-    with restrain("foo"):
+    async with restrain("foo"):
         print("Roll slowed")
 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())

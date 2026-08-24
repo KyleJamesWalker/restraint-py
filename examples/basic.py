@@ -8,13 +8,13 @@ add("foo", Limit(second=1, minute=5))
 
 
 @restrain("foo")
-def echo_chamber():
+def echo_chamber() -> None:
     """Say the current time."""
     print(f"Hello World {time.time()}")
 
 
 @restrain("foo")
-def second():
+def second() -> None:
     """Say the current time."""
     print(f"Hey! {time.time()}")
 

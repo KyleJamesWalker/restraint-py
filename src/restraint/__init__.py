@@ -16,7 +16,7 @@ from restraint.exceptions import (
 )
 from restraint.outcome import Outcome
 from restraint.registry import Registry
-from restraint.restraints import Limit, Reservation, Restraint
+from restraint.restraints import Limit, Quota, Reservation, Restraint
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -232,6 +232,7 @@ __all__ = [
     "Gate",
     "Limit",
     "Outcome",
+    "Quota",
     "QuotaExceededError",
     "Reservation",
     "Restraint",

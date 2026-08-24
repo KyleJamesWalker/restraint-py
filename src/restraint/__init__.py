@@ -16,7 +16,14 @@ from restraint.exceptions import (
 )
 from restraint.outcome import Outcome
 from restraint.registry import Registry
-from restraint.restraints import Limit, Quota, Reservation, Restraint
+from restraint.restraints import (
+    Jitter,
+    Limit,
+    Quota,
+    Reservation,
+    Restraint,
+    Spacing,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -230,6 +237,7 @@ class restrain:  # noqa: N801 - public API predates the convention
 
 __all__ = [
     "Gate",
+    "Jitter",
     "Limit",
     "Outcome",
     "Quota",
@@ -239,6 +247,7 @@ __all__ = [
     "RestraintConflictError",
     "RestraintError",
     "RestraintNotFoundError",
+    "Spacing",
     "add",
     "restrain",
 ]

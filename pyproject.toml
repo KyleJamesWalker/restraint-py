@@ -95,4 +95,4 @@ select = [
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D1", "S101"]
+"tests/*" = ["D1", "S101", "S311"]

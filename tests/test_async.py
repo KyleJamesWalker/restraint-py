@@ -1,8 +1,9 @@
 """Basic async example test."""
+
 import asyncio
 import time
 
-from restraint import restrain, Limit, add
+from restraint import Limit, add, restrain
 
 async_limit = Limit(second=1)
 add("test_async_simple", async_limit)

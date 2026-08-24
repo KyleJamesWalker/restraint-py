@@ -1,13 +1,17 @@
 """Test some of the top methods."""
+
 import pytest
+
 import restraint
 
 
 def test_not_found():
     """Verify assertion on new restraints."""
-    with pytest.raises(restraint.RestraintNotFoundError):
-        with restraint.restrain("not-found"):
-            raise RuntimeError("This should not be reached")
+    with (
+        pytest.raises(restraint.RestraintNotFoundError),
+        restraint.restrain("not-found"),
+    ):
+        raise RuntimeError("This should not be reached")
 
 
 def test_create_on_demand():

@@ -1,5 +1,7 @@
 """Global test fixtures."""
+
 import datetime
+
 import pytest
 
 
@@ -26,14 +28,13 @@ def when_now(monkeypatch):
         @classmethod
         def now(cls):
             """Fake the datetime now function."""
-            cur_time = cls.base_time + datetime.timedelta(
+            return cls.base_time + datetime.timedelta(
                 days=cls.offset_days,
                 hours=cls.offset_hours,
                 minutes=cls.offset_minutes,
                 seconds=cls.offset_seconds,
                 microseconds=cls.offset_microseconds,
             )
-            return cur_time
 
         @classmethod
         def utcnow(cls):
@@ -42,4 +43,4 @@ def when_now(monkeypatch):
 
     monkeypatch.setattr("datetime.datetime", MockedDatetime)
 
-    yield MockedDatetime
+    return MockedDatetime

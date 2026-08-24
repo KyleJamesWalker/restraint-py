@@ -1,4 +1,5 @@
 """Collection of various restraints."""
+
 import datetime
 import time
 
@@ -126,6 +127,6 @@ class Limit:
             self.check()
 
         # Reduce quota from each category
-        for key, value in self.rate_remaining.items():
+        for key in self.rate_remaining:
             if self.rate_remaining[key] >= 1:
                 self.rate_remaining[key] -= 1

@@ -1,7 +1,7 @@
 """Restraint Library."""
 
-import asyncio
 import functools
+import inspect
 from importlib.metadata import PackageNotFoundError, version
 
 from restraint.exceptions import RestraintError, RestraintNotFoundError
@@ -17,7 +17,7 @@ _reg = Registry()
 add = _reg.add
 
 
-class restrain:
+class restrain:  # noqa: N801 - public API predates the convention
     """Restraint class."""
 
     def __init__(self, name=None, restraint=None):
@@ -56,7 +56,7 @@ class restrain:
 
     def __call__(self, org_func):
         """Add decorator Support."""
-        is_async = asyncio.iscoroutinefunction(org_func)
+        is_async = inspect.iscoroutinefunction(org_func)
 
         if is_async:
 
@@ -66,20 +66,19 @@ class restrain:
                 return await org_func(*args, **kwargs)
 
             return wrapper
-        else:
 
-            @functools.wraps(org_func)
-            def wrapper(*args, **kwargs):  # pylint: disable=C0111
-                self.restraint.gate()
-                return org_func(*args, **kwargs)
+        @functools.wraps(org_func)
+        def wrapper(*args, **kwargs):  # pylint: disable=C0111
+            self.restraint.gate()
+            return org_func(*args, **kwargs)
 
-            return wrapper
+        return wrapper
 
 
 __all__ = [
+    "Limit",
     "RestraintError",
     "RestraintNotFoundError",
     "add",
     "restrain",
-    "Limit",
 ]

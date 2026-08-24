@@ -1,4 +1,5 @@
 """Test simple limit."""
+
 from restraint import Limit
 
 

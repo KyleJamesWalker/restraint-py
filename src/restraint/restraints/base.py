@@ -24,10 +24,14 @@ class Reservation(NamedTuple):
         granted: Whether capacity was claimed. When False the caller must
             sleep and ask again; when True the sleep is the reserved delay
             and the call may proceed once it elapses.
+        token: Opaque value handed back to :meth:`Restraint._admitted` once
+            the wait has elapsed, so a restraint can correct its bookkeeping
+            with the moment the call actually started.
     """
 
     wait: float = 0.0
     granted: bool = True
+    token: object = None
 
 
 #: Capacity was available immediately.
@@ -79,6 +83,8 @@ class Restraint(ABC):
             if reservation.wait > 0.0:
                 self._sleep(reservation.wait)
             if reservation.granted:
+                with self._lock:
+                    self._admitted(reservation.token)
                 return
 
     async def agate(self) -> None:
@@ -92,7 +98,22 @@ class Restraint(ABC):
             if reservation.wait > 0.0:
                 await asyncio.sleep(reservation.wait)
             if reservation.granted:
+                with self._lock:
+                    self._admitted(reservation.token)
                 return
+
+    def _admitted(self, token: object) -> None:  # noqa: B027 - optional hook
+        """Note that a granted call is starting now.
+
+        A reservation predicts when a slot opens, but the caller resumes
+        whenever the scheduler gets to it. Restraints that measure elapsed
+        time correct their bookkeeping here, so that lateness does not
+        accumulate into admitting more than the configured rate. Called
+        with ``self._lock`` held.
+
+        Args:
+            token: The value the matching :meth:`_reserve` returned.
+        """
 
     def release(self) -> None:  # noqa: B027 - optional hook, no-op by default
         """Give back anything held for the duration of the gated call."""

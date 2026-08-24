@@ -181,6 +181,12 @@ the caller wait and ask again. Override `report` to react to outcomes and
   runs on a monotonic clock.
 - `Concurrency` holds its slot until the gated call finishes, so it needs the
   decorator or a `with` block. A bare `gate()` requires a matching `release()`.
+- Rates are targets rather than hard bounds when callers are concurrent. Waiting
+  callers reserve slots up front, so one resuming late lets the next start
+  slightly early. Measured worst cases: `SlidingWindow(limit=50, per=1.0)` held
+  51 in a window across 16 threads, and `Spacing(seconds=0.05)` produced a 45ms
+  gap across 8. The error tracks scheduler latency against your interval, so
+  leave headroom on sub-second limits.
 
 ## Development
 

@@ -84,3 +84,24 @@ async def test_async_path_paces(clock: FakeClock) -> None:
     window = SlidingWindow(limit=2, per=0.01)
     for _ in range(3):
         await window.agate()
+
+
+def test_admission_is_timestamped_when_the_caller_resumes(clock: FakeClock) -> None:
+    """Counting the predicted slot let entries age out early.
+
+    The window then held fewer entries than it should and admitted over the
+    limit; 16 threads against limit=50 saw 57-59 in a one-second window.
+    """
+    window = build(clock, limit=1, per=1.0)
+
+    reservation = window._reserve()
+    assert reservation.wait == 0.0
+    # The caller resumes later than the reservation predicted.
+    clock.advance(0.4)
+    window._admitted(reservation.token)
+
+    # The entry must age out 1.0s after the real start, not the prediction.
+    clock.advance(0.9)
+    assert window.in_window() == 1, "entry aged out early"
+    clock.advance(0.2)
+    assert window.in_window() == 0

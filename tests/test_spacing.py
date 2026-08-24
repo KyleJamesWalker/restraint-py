@@ -102,3 +102,29 @@ async def test_spacing_paces_the_async_path(clock: FakeClock) -> None:
     spacing = Spacing(seconds=0.01)
     await spacing.agate()
     await spacing.agate()
+
+
+def test_next_gap_is_measured_from_the_real_start(clock: FakeClock) -> None:
+    """A late resume must not shorten the following gap."""
+    spacing = build(clock, seconds=1.0)
+
+    reservation = spacing._reserve()
+    clock.advance(0.5)  # resumed late
+    spacing._admitted(reservation.token)
+
+    # The next slot is a full gap after the real start, not the prediction.
+    assert spacing._reserve().wait == pytest.approx(1.0)
+
+
+def test_integer_seconds_still_correct_the_gap(clock: FakeClock) -> None:
+    """An int gap must not slip past the correction.
+
+    Guarding the token with isinstance(float) silently skipped Spacing(1).
+    """
+    spacing = build(clock, seconds=1)
+
+    reservation = spacing._reserve()
+    clock.advance(0.5)
+    spacing._admitted(reservation.token)
+
+    assert spacing._reserve().wait == pytest.approx(1.0)

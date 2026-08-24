@@ -5,42 +5,33 @@ import datetime
 import pytest
 
 
+class FakeClock:
+    """Deterministic wall clock that only moves when a test moves it."""
+
+    def __init__(self, start: datetime.datetime) -> None:
+        """Start the clock at ``start``."""
+        self.moment = start
+        self.slept: list[float] = []
+
+    def now(self) -> datetime.datetime:
+        """Return the current fake time."""
+        return self.moment
+
+    def monotonic(self) -> float:
+        """Return the fake time as monotonic seconds."""
+        return self.moment.timestamp()
+
+    def sleep(self, seconds: float) -> None:
+        """Record a sleep and advance the clock by it."""
+        self.slept.append(seconds)
+        self.moment += datetime.timedelta(seconds=seconds)
+
+    def advance(self, seconds: float) -> None:
+        """Move the clock forward without recording a sleep."""
+        self.moment += datetime.timedelta(seconds=seconds)
+
+
 @pytest.fixture
-def when_now(monkeypatch):
-    """Fixture to easily set the time."""
-
-    class MockedDatetime(datetime.datetime):
-        """Change current time."""
-
-        offset_months = 0
-        offset_days = 0
-        offset_hours = 0
-        offset_minutes = 0
-        offset_seconds = 0
-        offset_microseconds = 0
-        base_time = datetime.datetime(2020, 1, 15, 7, 9, 1, 313375)
-
-        @classmethod
-        def inc(cls, seconds):
-            """Advance the current time."""
-            cls.offset_seconds += seconds
-
-        @classmethod
-        def now(cls):
-            """Fake the datetime now function."""
-            return cls.base_time + datetime.timedelta(
-                days=cls.offset_days,
-                hours=cls.offset_hours,
-                minutes=cls.offset_minutes,
-                seconds=cls.offset_seconds,
-                microseconds=cls.offset_microseconds,
-            )
-
-        @classmethod
-        def utcnow(cls):
-            """Fake the datetime utcnow function."""
-            return cls.now()
-
-    monkeypatch.setattr("datetime.datetime", MockedDatetime)
-
-    return MockedDatetime
+def clock() -> FakeClock:
+    """A fake clock pinned to the timestamp the original suite used."""
+    return FakeClock(datetime.datetime(2020, 1, 15, 7, 9, 1, 313375))

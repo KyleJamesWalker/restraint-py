@@ -1,71 +1,124 @@
-"""Test simple limit."""
+"""Test calendar-aligned limits."""
+
+import datetime
+import threading
+
+import pytest
 
 from restraint import Limit
 
+from .conftest import FakeClock
 
-def test_seconds(when_now, mocker):
-    """Test simple second limit."""
-    lmt = Limit(second=3)
-    # Remove ability to sleep
-    p = mocker.patch.object(lmt, "sleep")
-    p.side_effect = lambda x: when_now.inc(x)
 
-    spy = mocker.spy(lmt, "sleep")
+def build(clock: FakeClock, **caps: int) -> Limit:
+    """Build a Limit driven entirely by the fake clock."""
+    return Limit(now=clock.now, sleep=clock.sleep, **caps)
 
-    # First three calls should work
+
+def test_seconds(clock: FakeClock) -> None:
+    """A second allowance drains, then waits for the next second boundary."""
+    lmt = build(clock, second=3)
+
+    for _ in range(3):
+        lmt.gate()
+    assert clock.slept == []
+
+    lmt.gate()
+    assert clock.slept == [0.686625]
+
+
+def test_minutes(clock: FakeClock) -> None:
+    """Second and minute windows interact exactly as they did in 0.0.2.
+
+    These are the original 0.0.2 expectations, kept verbatim so the rewrite
+    onto the reservation protocol is provably behaviour-preserving.
+    """
+    lmt = build(clock, second=1, minute=3)
+    # A hair of extra delay so consecutive calls do not land on one instant.
+    lmt._sleep = lambda s: (clock.slept.append(s), clock.advance(s + 0.0001))[0]
+
+    expected: list[float] = []
+    for wait in (None, 0.686625, 0.9999, 56.9999, 0.9999, 0.9999, 57.9999):
+        lmt.gate()
+        if wait is not None:
+            expected.append(wait)
+        assert clock.slept == expected
+
+
+def test_no_caps_never_waits(clock: FakeClock) -> None:
+    """A limit with no configured period is a no-op."""
+    lmt = build(clock)
+    for _ in range(100):
+        lmt.gate()
+    assert clock.slept == []
+
+
+def test_remaining_reports_allowance(clock: FakeClock) -> None:
+    """Remaining allowance is visible and refills on the boundary."""
+    lmt = build(clock, second=2, minute=5)
+    assert lmt.remaining() == {"minute": 5, "second": 2}
+
+    lmt.gate()
+    assert lmt.remaining() == {"minute": 4, "second": 1}
+
+    clock.advance(1)
+    assert lmt.remaining() == {"minute": 4, "second": 2}
+
+
+def test_coarse_window_gates_after_fine_refills(clock: FakeClock) -> None:
+    """An exhausted minute keeps gating even once the second has refilled."""
+    lmt = build(clock, second=5, minute=2)
     lmt.gate()
     lmt.gate()
+
     lmt.gate()
-    spy.assert_not_called()
+    # Waited to the top of the next minute, not the next second.
+    assert clock.slept == [pytest.approx(58.686625)]
 
-    # Last call should hit the gate
+
+def test_month_boundary_rolls_the_year(clock: FakeClock) -> None:
+    """A December month window refills on 1 January."""
+    lmt = Limit(
+        month=1,
+        now=lambda: datetime.datetime(2020, 12, 31, 23, 59, 59),
+        sleep=lambda _: None,
+    )
     lmt.gate()
-    spy.assert_called_once_with(0.686625)
+    reservation = lmt._reserve()
+    assert not reservation.granted
+    assert reservation.wait == pytest.approx(1.0)
 
 
-def test_minutes(when_now, mocker):
-    """Test seconds and minutes limit."""
-    lmt = Limit(second=1, minute=3)
+def test_caps_are_a_copy(clock: FakeClock) -> None:
+    """Mutating the reported caps cannot corrupt the limit."""
+    lmt = build(clock, second=1)
+    lmt.caps["second"] = 99
+    assert lmt.caps == {"second": 1}
 
-    # Remove ability to sleep
-    p = mocker.patch.object(lmt, "sleep")
-    # Sleep for a tiny bit longer so show time
-    # passing between test calls
-    p.side_effect = lambda x: when_now.inc(x + 0.0001)
 
-    spy = mocker.spy(lmt, "sleep")
-    calls = []
+def test_threads_cannot_exceed_the_allowance() -> None:
+    """Concurrent callers are held to the configured rate.
 
-    # First call no sleep
-    lmt.gate()
-    assert spy.mock_calls == calls
+    Before the reservation protocol this admitted all twenty callers at once,
+    because check-then-decrement was not atomic.
+    """
+    admitted = 0
+    admitted_lock = threading.Lock()
+    start = threading.Barrier(20)
 
-    # Second expired expect rest till next second
-    lmt.gate()
-    calls.append(mocker.call(0.686625))
-    assert spy.mock_calls == calls
+    lmt = Limit(second=5, sleep=lambda _: None)
 
-    # Last call waited and used the only quota, rest till next second
-    lmt.gate()
-    calls.append(mocker.call(0.9999))
-    assert spy.mock_calls == calls
+    def worker() -> None:
+        nonlocal admitted
+        start.wait()
+        if lmt._reserve().granted:
+            with admitted_lock:
+                admitted += 1
 
-    # Out of mins, once finished use all second quota
-    lmt.gate()
-    calls.append(mocker.call(56.9999))
-    assert spy.mock_calls == calls
+    threads = [threading.Thread(target=worker) for _ in range(20)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
-    # Same as before
-    lmt.gate()
-    calls.append(mocker.call(0.9999))
-    assert spy.mock_calls == calls
-
-    # Same as it ever was
-    lmt.gate()
-    calls.append(mocker.call(0.9999))
-    assert spy.mock_calls == calls
-
-    # Out of minutes
-    lmt.gate()
-    calls.append(mocker.call(57.9999))
-    assert spy.mock_calls == calls
+    assert admitted == 5

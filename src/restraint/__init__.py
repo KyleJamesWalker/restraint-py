@@ -226,7 +226,24 @@ class restrain:  # noqa: N801 - public API predates the convention
         self._close(exc)
 
     def __call__(self, org_func: Callable[..., Any]) -> Callable[..., Any]:
-        """Wrap a callable so every invocation passes through the restraint."""
+        """Wrap a callable so every invocation passes through the restraint.
+
+        Raises:
+            TypeError: ``org_func`` is a generator or async generator
+                function, which cannot be gated meaningfully.
+        """
+        if inspect.isgeneratorfunction(org_func) or inspect.isasyncgenfunction(
+            org_func
+        ):
+            # Calling one only builds the generator; the work happens on
+            # iteration, so gating here would restrain nothing and release
+            # before the first item. Better to refuse than to look applied.
+            raise TypeError(
+                f"cannot restrain generator function {org_func.__name__!r}: "
+                "gating would cover creating the generator, not consuming it. "
+                "Apply the restraint inside the generator, or to the code that "
+                "iterates it."
+            )
         if inspect.iscoroutinefunction(org_func):
 
             @functools.wraps(org_func)

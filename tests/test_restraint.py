@@ -191,3 +191,29 @@ async def test_async_guard_does_not_consume_capacity() -> None:
         assert slots.in_flight == 1
 
     assert slots.in_flight == 0
+
+
+def test_generator_functions_are_refused() -> None:
+    """Gating a generator would cover creation, not iteration."""
+    recorder = Recorder()
+
+    with pytest.raises(TypeError, match="cannot restrain generator function"):
+
+        @restrain("gen-sync", recorder)
+        def counter():
+            yield 1
+
+    assert recorder.gates == 0
+
+
+def test_async_generator_functions_are_refused() -> None:
+    """Async generators are not coroutine functions, so they hit the sync path."""
+    recorder = Recorder()
+
+    with pytest.raises(TypeError, match="cannot restrain generator function"):
+
+        @restrain("gen-async", recorder)
+        async def acounter():
+            yield 1
+
+    assert recorder.gates == 0

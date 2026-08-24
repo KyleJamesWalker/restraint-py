@@ -17,6 +17,18 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  - repo: local
+    hooks:
+      # Run through uv rather than mirrors-mypy so the checker sees the
+      # project's own environment and version, exactly as a developer does.
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.12.5
     hooks:

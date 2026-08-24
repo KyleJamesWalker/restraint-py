@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install lint format typecheck test cov build clean
+.PHONY: help install check format test cov build clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -9,16 +9,12 @@ install:  ## Sync the dev environment and install hooks
 	uv sync --all-extras
 	uv run pre-commit install
 
-lint:  ## Run every static check
-	uv run ruff check .
-	uv run ruff format --check .
+check:  ## Run every static check, exactly as CI does
+	uv run pre-commit run --all-files
 
 format:  ## Apply formatting and safe fixes
 	uv run ruff check --fix .
 	uv run ruff format .
-
-typecheck:  ## Run mypy
-	uv run mypy
 
 test:  ## Run the test suite
 	uv run pytest

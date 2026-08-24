@@ -180,12 +180,14 @@ the caller wait and ask again. Override `report` to react to outcomes and
 ## Development
 
 ```console
-uv sync --all-extras
-uv run pytest
-uv run ruff check .
-uv run mypy
-uv run pre-commit install
+make install    # sync the environment and install the git hooks
+make check      # ruff, mypy, actionlint — the same hooks CI runs
+make test
 ```
+
+Static analysis lives in `.pre-commit-config.yaml`, and CI runs
+`pre-commit run --all-files` rather than invoking each tool separately, so the
+hooks and the pipeline cannot disagree. `make format` applies fixes.
 
 ## License
 

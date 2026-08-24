@@ -2,6 +2,7 @@
 
 import asyncio
 import threading
+import time
 
 import pytest
 
@@ -18,16 +19,21 @@ def test_slots_are_taken_and_returned() -> None:
     assert limiter.in_flight == 1
 
 
-def test_full_cap_refuses_until_released() -> None:
+def test_full_cap_blocks_until_released() -> None:
     limiter = Concurrency(1)
     limiter.gate()
 
-    reservation = limiter._reserve()
-    assert not reservation.granted
-    assert reservation.wait == pytest.approx(limiter.poll)
+    admitted = threading.Event()
+    waiter = threading.Thread(target=lambda: (limiter.gate(), admitted.set()))
+    waiter.start()
+
+    assert not admitted.wait(0.05), "a second caller entered a full cap"
+    assert limiter.waiting == 1
 
     limiter.release()
-    assert limiter._reserve().granted
+    assert admitted.wait(1.0), "releasing did not admit the waiter"
+    waiter.join()
+    assert limiter.in_flight == 1
 
 
 def test_release_never_goes_negative() -> None:
@@ -113,3 +119,99 @@ async def test_coroutines_never_exceed_the_cap() -> None:
 def test_rejects_invalid_configuration(kwargs: dict[str, float], message: str) -> None:
     with pytest.raises(ValueError, match=message):
         Concurrency(**kwargs)  # type: ignore[arg-type]
+
+
+def test_waiters_are_served_in_arrival_order() -> None:
+    """A releasing holder must not be able to jump the queue.
+
+    Polling with no queue let a caller that released and immediately
+    re-acquired win every time, starving everyone waiting.
+    """
+    limiter = Concurrency(1)
+    limiter.gate()
+
+    order: list[int] = []
+    order_lock = threading.Lock()
+    started = [threading.Event() for _ in range(4)]
+
+    def worker(index: int) -> None:
+        started[index].set()
+        limiter.gate()
+        with order_lock:
+            order.append(index)
+        limiter.release()
+
+    threads = []
+    for index in range(4):
+        thread = threading.Thread(target=worker, args=(index,))
+        threads.append(thread)
+        thread.start()
+        # Let each one join the queue before the next arrives.
+        started[index].wait(1.0)
+        time.sleep(0.02)
+
+    limiter.release()
+    for thread in threads:
+        thread.join(timeout=5.0)
+        assert not thread.is_alive(), "a waiter never got a slot"
+
+    assert order == [0, 1, 2, 3], f"served out of order: {order}"
+
+
+def test_a_churning_holder_cannot_starve_a_waiter() -> None:
+    """Reproduces the reported hang: re-acquiring goes to the back."""
+    limiter = Concurrency(1)
+    admitted = threading.Event()
+    stop = threading.Event()
+
+    def churner() -> None:
+        while not stop.is_set():
+            limiter.gate()
+            limiter.release()
+
+    def waiter() -> None:
+        limiter.gate()
+        admitted.set()
+        limiter.release()
+
+    churn = threading.Thread(target=churner, daemon=True)
+    churn.start()
+    time.sleep(0.02)
+    wait_thread = threading.Thread(target=waiter)
+    wait_thread.start()
+
+    got_in = admitted.wait(5.0)
+    stop.set()
+    wait_thread.join(timeout=5.0)
+    churn.join(timeout=5.0)
+
+    assert got_in, "the waiter was starved by a churning holder"
+
+
+def test_abandoning_the_queue_does_not_block_it() -> None:
+    """A cancelled waiter must not wedge everyone behind it."""
+    limiter = Concurrency(1)
+    limiter.gate()
+
+    ticket = limiter._take_ticket()
+    limiter._abandon(ticket)
+
+    limiter.release()
+    limiter.gate()
+    assert limiter.in_flight == 1
+
+
+async def test_cancelled_coroutine_releases_its_place() -> None:
+    limiter = Concurrency(1)
+    await limiter.agate()
+
+    task = asyncio.create_task(limiter.agate())
+    await asyncio.sleep(0.02)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    limiter.release()
+    # The abandoned ticket must not block a later arrival.
+    await asyncio.wait_for(limiter.agate(), timeout=2.0)
+    assert limiter.in_flight == 1

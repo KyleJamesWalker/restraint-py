@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from typing import TYPE_CHECKING
 
 from restraint.restraints.base import Reservation, Restraint
@@ -11,7 +13,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Concurrency"]
 
-#: How long a blocked caller waits before re-checking for a free slot.
+#: How often a waiting caller re-checks for its turn.
 DEFAULT_POLL = 0.005
 
 
@@ -32,16 +34,23 @@ class Concurrency(Restraint):
     async def fetch(url): ...
     ```
 
+    Waiters are served strictly in arrival order. Each takes a ticket on
+    arrival and may claim a slot only when its ticket comes up, so a caller
+    that releases and immediately re-acquires goes to the back of the queue
+    instead of beating everyone already waiting.
+
     One counter serves both threads and coroutines, so a mixed program is
-    still held to ``limit`` overall. Blocked callers re-check every ``poll``
-    seconds rather than being handed off directly, which keeps the same
-    counter usable from either world.
+    still held to ``limit`` overall. Threads block on a condition variable;
+    coroutines re-check every ``poll`` seconds, which keeps the single shared
+    counter without ever blocking the event loop.
 
     Args:
         limit: Maximum calls in flight.
-        poll: How long a blocked caller waits between checks.
+        poll: How often a waiting coroutine re-checks its turn, and the
+            longest a blocked thread sleeps before re-checking.
         clock: Monotonic seconds source. Unused, accepted for symmetry.
-        sleep: Blocking sleep used by :meth:`gate`. Injected by tests.
+        sleep: Unused; waiting is handled by the queue rather than by
+            sleeping for a computed interval.
 
     Raises:
         ValueError: ``limit`` is less than one or ``poll`` is not positive.
@@ -64,6 +73,10 @@ class Concurrency(Restraint):
         self.limit = limit
         self.poll = poll
         self._in_flight = 0
+        self._issued = 0
+        self._serving = 0
+        self._abandoned: set[int] = set()
+        self._turn = threading.Condition(self._lock)
 
     @property
     def in_flight(self) -> int:
@@ -71,15 +84,77 @@ class Concurrency(Restraint):
         with self._lock:
             return self._in_flight
 
-    def _reserve(self) -> Reservation:
-        """Take a slot if one is free, otherwise ask to be retried."""
-        if self._in_flight < self.limit:
+    @property
+    def waiting(self) -> int:
+        """How many callers are queued for a slot."""
+        with self._lock:
+            return max(self._issued - self._serving - len(self._abandoned), 0)
+
+    def _take_ticket(self) -> int:
+        """Join the back of the queue."""
+        with self._lock:
+            ticket = self._issued
+            self._issued += 1
+            return ticket
+
+    def _skip_abandoned(self) -> None:
+        """Advance past tickets whose owner gave up. Caller holds the lock."""
+        while self._serving in self._abandoned:
+            self._abandoned.discard(self._serving)
+            self._serving += 1
+
+    def _claim(self, ticket: int) -> bool:
+        """Take a slot if this ticket's turn has come. Caller holds the lock."""
+        self._skip_abandoned()
+        if ticket == self._serving and self._in_flight < self.limit:
             self._in_flight += 1
-            return Reservation()
-        return Reservation(self.poll, granted=False)
+            self._serving += 1
+            self._skip_abandoned()
+            self._turn.notify_all()
+            return True
+        return False
+
+    def _abandon(self, ticket: int) -> None:
+        """Drop out of the queue without ever being served."""
+        with self._turn:
+            self._abandoned.add(ticket)
+            self._skip_abandoned()
+            self._turn.notify_all()
+
+    def gate(self) -> None:
+        """Block until a slot is free and this caller's turn has come."""
+        ticket = self._take_ticket()
+        try:
+            with self._turn:
+                while not self._claim(ticket):
+                    # Bounded wait: a coroutine ahead of us in the queue only
+                    # re-checks on its own poll interval and cannot notify us
+                    # while it sleeps.
+                    self._turn.wait(self.poll)
+        except BaseException:
+            self._abandon(ticket)
+            raise
+
+    async def agate(self) -> None:
+        """Await a free slot without blocking the event loop."""
+        ticket = self._take_ticket()
+        try:
+            while True:
+                with self._turn:
+                    if self._claim(ticket):
+                        return
+                await asyncio.sleep(self.poll)
+        except BaseException:
+            self._abandon(ticket)
+            raise
+
+    def _reserve(self) -> Reservation:
+        """Unused: admission is queued rather than reserved per attempt."""
+        raise NotImplementedError
 
     def release(self) -> None:
         """Give the slot back once the gated call has finished."""
-        with self._lock:
+        with self._turn:
             if self._in_flight > 0:
                 self._in_flight -= 1
+            self._turn.notify_all()

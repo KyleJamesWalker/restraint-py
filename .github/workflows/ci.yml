@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.12.5"
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --locked --all-extras
+      - name: pre-commit
+        run: uv run --with pre-commit pre-commit run --all-files --show-diff-on-failure
+
+  test:
+    name: Test (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked --all-extras
+      - name: pytest
+        run: >-
+          uv run pytest
+          --cov=restraint
+          --cov-report=xml
+          --cov-report=term-missing
+          --junitxml=results-${{ matrix.python-version }}.xml
+      - uses: codecov/codecov-action@v7
+        if: matrix.python-version == '3.14'
+        with:
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv build
+      - name: Validate metadata
+        run: uv run --with twine twine check --strict dist/*
+      - name: Import from built wheel
+        run: |
+          uv venv --python 3.14 /tmp/probe
+          VIRTUAL_ENV=/tmp/probe uv pip install --no-cache dist/*.whl
+          /tmp/probe/bin/python -c "import restraint; print(restraint.__version__)"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  ci-ok:
+    name: CI OK
+    runs-on: ubuntu-latest
+    needs: [checks, test, build]
+    if: always()
+    steps:
+      - name: Verify every required job succeeded
+        shell: bash
+        run: |
+          # Require success rather than listing the states that are not it, so
+          # a job that is later skipped by an `if:` cannot pass this gate.
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "required job results: $results"
+          if [ -z "$results" ]; then
+            echo "::error::no required jobs reported a result"
+            exit 1
+          fi
+          for result in $results; do
+            if [ "$result" != "success" ]; then
+              echo "::error::a required job reported '$result'"
+              exit 1
+            fi
+          done

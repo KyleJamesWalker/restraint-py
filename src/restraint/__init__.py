@@ -22,7 +22,9 @@ from restraint.restraints import (
     Quota,
     Reservation,
     Restraint,
+    SlidingWindow,
     Spacing,
+    TokenBucket,
 )
 
 if TYPE_CHECKING:
@@ -247,7 +249,9 @@ __all__ = [
     "RestraintConflictError",
     "RestraintError",
     "RestraintNotFoundError",
+    "SlidingWindow",
     "Spacing",
+    "TokenBucket",
     "add",
     "restrain",
 ]

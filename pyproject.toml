@@ -40,6 +40,13 @@ Homepage = "https://github.com/KyleJamesWalker/restraint-py"
 Source = "https://github.com/KyleJamesWalker/restraint-py"
 Issues = "https://github.com/KyleJamesWalker/restraint-py/issues"
 
+# Public builds must resolve against PyPI; a contributor's private mirror
+# would otherwise be baked into uv.lock and break CI for everyone else.
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]

@@ -41,12 +41,14 @@ Requires Python 3.11+.
 | `SlidingWindow(limit=…, per=…)` | The trailing window is full | The server counts a rolling window too |
 | `Spacing(seconds=…, jitter=…)` | The last call was too recent | Calls must not bunch up, and shouldn't look metronomic |
 | `Jitter(seconds=…)` | Always, by a random amount | Desynchronising a fleet of workers |
-| `Concurrency(limit)` | Too many calls are already running | The cap is on calls in flight, not calls started |
+| `Concurrency(limit)` | Too many calls are already running | The cap is on calls in flight, not calls started; waiters are served in arrival order |
 | `Quota(day=…, month=…)` | A hard budget is spent — **raises** | Running out is an error, not a delay |
 | `Backoff(base=…)` | Recent calls failed | You should stop hammering something that is refusing you |
 | `Adaptive()` | The server says so | The API reports its own rate-limit budget |
 
 ### Compose them with `&`
+
+`a & b` builds a `Composite`, and chaining flattens rather than nesting.
 
 One rule is rarely enough. Combine them, cheapest rejection first:
 
@@ -118,6 +120,9 @@ budget it has left across the window it has left, and obeys `Retry-After`
 outright. Without those headers it does nothing, so pair it with a configured
 restraint that paces the opening calls.
 
+A 429 or 503 with no usable headers still applies `throttle_hold` (default 1s),
+since being refused is itself information.
+
 Reset headers come in two flavours — seconds from now, or an absolute epoch
 timestamp (GitHub, Reddit and X use the latter). `Adaptive` detects which per
 value; force it with `reset_style="delta"` or `"epoch"` if your API is
@@ -168,8 +173,18 @@ class EveryOtherCall(Restraint):
 `_reserve` runs under the restraint's lock, so it can read and write its own
 state freely. Return `Reservation()` to admit immediately, `Reservation(wait)`
 to admit after a reserved delay, or `Reservation(wait, granted=False)` to make
-the caller wait and ask again. Override `report` to react to outcomes and
-`release` to hand back anything held for the duration of the call.
+the caller wait and ask again.
+
+Three optional hooks cover the rest:
+
+| Hook | Called | For |
+| --- | --- | --- |
+| `_admitted(token)` | once the reserved wait has elapsed | correcting bookkeeping with the moment the call really started, via `Reservation(..., token=...)` |
+| `report(outcome)` | when the call finishes | reacting to what the server said |
+| `release()` | when the call finishes | handing back anything held for its duration |
+
+A restraint whose admission is queued rather than reserved per attempt can
+override `gate` and `agate` instead — `Concurrency` and `Composite` both do.
 
 ## Caveats
 

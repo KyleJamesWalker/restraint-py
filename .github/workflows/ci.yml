@@ -87,6 +87,20 @@ jobs:
     needs: [checks, test, build]
     if: always()
     steps:
-      - name: Verify all jobs succeeded
+      - name: Verify every required job succeeded
+        shell: bash
         run: |
-          [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false" ]
+          # Require success rather than listing the states that are not it, so
+          # a job that is later skipped by an `if:` cannot pass this gate.
+          results='${{ join(needs.*.result, ' ') }}'
+          echo "required job results: $results"
+          if [ -z "$results" ]; then
+            echo "::error::no required jobs reported a result"
+            exit 1
+          fi
+          for result in $results; do
+            if [ "$result" != "success" ]; then
+              echo "::error::a required job reported '$result'"
+              exit 1
+            fi
+          done

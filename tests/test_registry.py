@@ -61,3 +61,11 @@ def test_clear(registry: Registry) -> None:
     registry.add("b", Limit(second=1))
     registry.clear()
     assert len(registry) == 0
+
+
+def test_setitem_replaces_without_complaint(registry: Registry) -> None:
+    """Item assignment is the deliberate override, so it never conflicts."""
+    registry["a"] = Limit(second=1)
+    replacement = Limit(second=2)
+    registry["a"] = replacement
+    assert registry["a"] is replacement

@@ -1,26 +1,35 @@
-debug ?= false
+.DEFAULT_GOAL := help
+.PHONY: help install lint format typecheck test cov build clean
 
-ifeq ($(debug),true)
-	test_extra_params := -- --pudb
-else
-	test_extra_params :=
-endif
+help:  ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-clean:
-	@rm -rf build/ .tox/ .eggs/ .pytest_cache/ *.egg-info *.egg coverage.xml
-	@find . -name '*.pyc' -delete
-	@find . -name '__pycache__' -delete
+install:  ## Sync the dev environment and install hooks
+	uv sync --all-extras
+	uv run pre-commit install
 
-test3:
-	-tox -e py38 $(test_extra_params)
+lint:  ## Run every static check
+	uv run ruff check .
+	uv run ruff format --check .
 
-test:
-	tox -p auto
+format:  ## Apply formatting and safe fixes
+	uv run ruff check --fix .
+	uv run ruff format .
 
-build:
-	PYENV_VERSION=rest python setup.py build
+typecheck:  ## Run mypy
+	uv run mypy
 
-upload_test:
-	# pip install twine
-	python setup.py sdist
-	twine upload --repository-url https://test.pypi.org/legacy/ -u __token__ -p $TESTPYPI_PASS dist/* --verbose
+test:  ## Run the test suite
+	uv run pytest
+
+cov:  ## Run the test suite with a coverage report
+	uv run pytest --cov=restraint --cov-report=term-missing --cov-report=xml
+
+build:  ## Build the sdist and wheel
+	uv build
+
+clean:  ## Remove build and test artefacts
+	@rm -rf build/ dist/ .tox/ .eggs/ .pytest_cache/ .ruff_cache/ .mypy_cache/ \
+		*.egg-info *.egg coverage.xml results.xml .coverage
+	@find . -name '__pycache__' -type d -prune -exec rm -rf {} +

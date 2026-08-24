@@ -135,6 +135,21 @@ def test_garbage_headers_are_ignored(clock: FakeClock) -> None:
     assert adaptive.gap == pytest.approx(0.0)
 
 
+def test_zero_reset_drops_back_to_the_floor(clock: FakeClock) -> None:
+    """A window reported as already reset carries no pacing information."""
+    adaptive = build(clock, minimum=0.5)
+    adaptive.report(
+        Outcome(headers={"X-RateLimit-Remaining": "5", "X-RateLimit-Reset": "0"})
+    )
+    assert adaptive.gap == pytest.approx(0.5)
+
+
+def test_partial_headers_are_ignored(clock: FakeClock) -> None:
+    adaptive = build(clock)
+    adaptive.report(Outcome(headers={"X-RateLimit-Remaining": "5"}))
+    assert adaptive.gap == pytest.approx(0.0)
+
+
 def test_reads_headers_through_the_gate(clock: FakeClock) -> None:
     """The whole point: observe() on the gate re-paces the restraint."""
     adaptive = build(clock)

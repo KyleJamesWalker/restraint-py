@@ -66,3 +66,9 @@ async def test_async_path_also_refuses(clock: FakeClock) -> None:
     await quota.agate()
     with pytest.raises(QuotaExceededError):
         await quota.agate()
+
+
+def test_caps_are_a_copy(clock: FakeClock) -> None:
+    quota = Quota(day=5, now=clock.now)
+    quota.caps["day"] = 99
+    assert quota.caps == {"day": 5}

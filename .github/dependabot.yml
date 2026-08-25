@@ -4,6 +4,14 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # build-system requires are resolved fresh at build time and always take
+      # the newest match in range, so raising the floor changes nothing that
+      # gets built. Keep minor bumps, which is how a 0.13 needing the ceiling
+      # widened would reach us. Dependabot uses the PyPI-normalised name, so
+      # this is uv-build even though pyproject.toml spells it uv_build.
+      - dependency-name: "uv-build"
+        update-types: ["version-update:semver-patch"]
     groups:
       python-dev:
         patterns: ["*"]
